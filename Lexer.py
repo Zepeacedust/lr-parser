@@ -67,6 +67,8 @@ class Lexer:
             self.char = 0
             self.line += 1
         self.ch = self.file.read(1)
+        if self.ch == "":
+            self.ch = "eof"
         return out
 
     def lookahead(self) -> Token:
@@ -77,7 +79,6 @@ class Lexer:
     def compile_rules(self, rule_file):
         lines = [line for line in rule_file.read().split("\n") if line != ""]
         for line in lines:
-            print(line[:5])
             if line[:5] == "class":
                 break_index = line.index(":")
                 name = line[6:break_index]
@@ -111,6 +112,12 @@ class Lexer:
         print(self.nonterminals, self.terminals, self.families, self.rules)
 
     def next_token(self):
+
+        if self.lookahead_buffer != None:
+            out = self.lookahead_buffer
+            self.lookahead_buffer = None
+            return out
+
         while self.ch in WHITESPACE:
             self.next_character()
         
@@ -120,6 +127,7 @@ class Lexer:
         if self.ch in self.tokentrie:
             return self.match_trie()
         
+        return Token('eof', 'eof')
     def match_family(self, family):
         word = ""
         while family[1].match(word + self.ch):
@@ -142,6 +150,3 @@ class Lexer:
 
 if __name__ == "__main__":
     test = Lexer("language.lang", "test.txt")
-    print(test.next_token())
-    print(test.next_token())
-    print(test.next_token())
