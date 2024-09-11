@@ -20,12 +20,16 @@ class Parser:
         self.lexer = lexer
         self.lang = lexer.language
 
+        self.followset = {}
+
         self.transitions = {}
         self.reductions = {}
         self.compile_rules()
 
 
     def follows(self,token):
+        if token in self.followset:
+            return self.followset[token]
         out = set()
         for rule in self.lang.rules:
             for ind in range(len(rule.rhs)):
@@ -38,6 +42,7 @@ class Parser:
                     out.update(self.follows(rule.lhs))
                 else:
                     out.update(self.starts(rule.rhs[ind+1]))
+        self.followset[token] = out
 
         return out
 
@@ -174,4 +179,4 @@ class Parser:
 if __name__ == "__main__":
     test = Parser(Lexer("while.lang", "WhileTest.txt"))
     program = test.parse().simplify()
-    print(program.execute({}))
+    program.execute({})
