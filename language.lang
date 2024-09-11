@@ -1,8 +1,7 @@
 class number:\d+$
-
-E -> E * S
+E -> E + S
 E -> S
 
-S -> S + number
+S -> S * number
 S -> ( E )
 S -> number

@@ -1,5 +1,7 @@
 import re
 
+from language_reader import LanguageReader
+
 WHITESPACE = [
     " ",
     "\n",
@@ -24,9 +26,10 @@ class TrieNode:
 
 
 class Token:
-    def __init__(self,type, text) -> None:
+    def __init__(self, type, text, pos) -> None:
         self.type = type
         self.text = text
+        self.pos = pos
     
     def __repr__(self) -> str:
         return f"Token({self.type}, {self.text})"
@@ -39,16 +42,13 @@ class Rule:
         return f"Rule({self.lhs}, {self.rhs})"
 
 class Lexer:
-    def __init__(self, rules, text) -> None:    
-        self.terminals = set()
-        self.nonterminals = set()
-        self.families = []
-        self.rules:list[Rule] = []
+    def __init__(self, rules, text) -> None:
+        self.language = LanguageReader(rules)
 
+        # initalize TokenTrie
         self.tokentrie = TrieNode()
-
-        with open(rules, "r") as rule_file:
-            self.compile_rules(rule_file)
+        for terminal in self.language.terminals:
+            self.tokentrie.add(terminal)
 
         self.ch:str = ''
         self.file = open(text, "r")
@@ -68,48 +68,13 @@ class Lexer:
             self.line += 1
         self.ch = self.file.read(1)
         if self.ch == "":
-            self.ch = "eof"
+            self.ch = ""
         return out
 
     def lookahead(self) -> Token:
         if self.lookahead_buffer == None:
             self.lookahead_buffer = self.next_token()
         return self.lookahead_buffer
-
-    def compile_rules(self, rule_file):
-        lines = [line for line in rule_file.read().split("\n") if line != ""]
-        for line in lines:
-            if line[:5] == "class":
-                break_index = line.index(":")
-                name = line[6:break_index]
-                rule = line[break_index+1:]
-                self.families.append((name, re.compile(rule)))
-                continue
-            self.nonterminals.add(line.split("->")[0].strip())
-        
-        for line in lines:
-            if line[:5] == "class":
-                continue
-            parts = line.split("->")
-            tokens = [token for token in parts[1].split(" ") if token != ""]
-            lhs = parts[0].strip()
-            for token in tokens:
-                if token in self.nonterminals:
-                    continue
-                matched = False
-                for family in self.families:
-                    if family[1].match(token) or token == family[0]:
-                        matched = True
-                        break
-                if matched:
-                    continue
-                self.terminals.add(token)
-            self.rules.append(Rule(lhs, tokens))
-
-        for terminal in self.terminals:
-            self.tokentrie.add(terminal)
-
-        print(self.nonterminals, self.terminals, self.families, self.rules)
 
     def next_token(self):
 
@@ -121,18 +86,21 @@ class Lexer:
         while self.ch in WHITESPACE:
             self.next_character()
         
-        for family in self.families:
-            if family[1].match(self.ch):
-                return self.match_family(family)
         if self.ch in self.tokentrie:
             return self.match_trie()
         
-        return Token('eof', 'eof')
+        for family in self.language.families:
+            if family[1].match(self.ch):
+                return self.match_family(family)
+        return Token('eof', '', self.tell())
+    
     def match_family(self, family):
         word = ""
         while family[1].match(word + self.ch):
             word += self.next_character()
-        return Token(family[0], word)
+            if self.ch == "":
+                break
+        return Token(family[0], word, self.tell())
 
     def match_trie(self):
         word = ""
@@ -143,7 +111,7 @@ class Lexer:
             word += self.next_character()
 
         if trie_head.word == word:
-            return Token(word, word)
+            return Token(word, word, self.tell())
         else:
             print("something silly happened", word, trie_head.word)
 

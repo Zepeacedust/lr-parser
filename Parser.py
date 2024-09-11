@@ -1,5 +1,6 @@
-from Lexer import Lexer, Rule
-
+from Lexer import Lexer, Token
+from language_reader import LanguageReader, Rule
+from AST import ParseTree
 class Item:
     def __init__(self, rule:Rule, dot) -> None:
         self.rule = rule
@@ -12,9 +13,13 @@ class Item:
     def __hash__(self) -> int:
         return hash((self.dot, self.rule))
 
+
+                
 class Parser:
     def __init__(self, lexer:Lexer) -> None:
         self.lexer = lexer
+        self.lang = lexer.language
+
         self.transitions = {}
         self.reductions = {}
         self.compile_rules()
@@ -22,7 +27,7 @@ class Parser:
 
     def follows(self,token):
         out = set()
-        for rule in self.lexer.rules:
+        for rule in self.lang.rules:
             for ind in range(len(rule.rhs)):
                 if rule.rhs[ind] != token:
                     continue
@@ -39,25 +44,28 @@ class Parser:
     def starts(self, token):
 
         # nonterminals always start with themselves and only themselves
-        if not token in self.lexer.nonterminals:
+        if not token in self.lang.nonterminals:
             return {token}
         out = set()
 
-        for rule in self.lexer.rules:
+        for rule in self.lang.rules:
             if rule.lhs != token:
                 continue
 
+            if len(rule.rhs) == 0:
+                continue
+            
             # Don't infinitely recur
-            if len(rule.rhs) == 0 or rule.rhs[0] == token:
+            if rule.rhs[0] == token:
                 continue
             out.update(self.starts(rule.rhs[0]))
         return out
 
     def compile_rules(self):
         # TODO: determine starting token properly
-        rule_0 = Rule("", [self.lexer.rules[0].lhs, "eof"])
-        self.lexer.rules.append(rule_0)
-        self.lexer.terminals.add("eof")
+        rule_0 = Rule("", [self.lang.rules[0].lhs, "eof"])
+        self.lang.rules.append(rule_0)
+        self.lang.terminals.add("eof")
         
 
         sets = [{Item(rule_0, 0)}]
@@ -76,35 +84,47 @@ class Parser:
             i += 1
 
 
-        self.calculate_reductions(sets)
+        self.reductions = self.calculate_reductions(sets)
         
+        self.accepting = self.find_accepting(sets)
+
         for i in range(len(sets)):
             print(f"Set {i}:")
             for item in sets[i]:
                 print(item, "Reducing" if len(item.rule.rhs) == item.dot else "")
-        # print(self.transitions)
-        # print(self.reductions)
 
+    # any sets with an item of the form A->w dot are reductions
+    # since this is a slr parser, we also add a check to only reduce if
+    # the lookahead token matches 
     def calculate_reductions(self, sets):
+        reductions = {}
         for i in range(len(sets)):
             for item in sets[i]:
                 if len(item.rule.rhs) == item.dot:
-                    for token in self.lexer.terminals:
+                    for token in self.lang.terminals:
                         if token in self.follows(item.rule.lhs):
-                            self.reductions[(i, token)] = item.rule
+                            reductions[(i, token)] = item.rule
+        return reductions
  
+    def find_accepting(self, sets):
+        for ind in range(len(sets)):
+            if Item(self.lang.rules[-1], 2) in sets[ind]:
+                print(f"state {ind} is accepting")
+                return ind
+        raise Exception("Did not find accepting set")
 
-
+    # returns the closure of the set
     def close_set(self, old_set:set[Item]):
         modified = False
+        # copy made since you should not change an iterable while iterating over it
         new_set = old_set.copy()
         for item in old_set:
             if item.dot == len(item.rule.rhs):
                 continue
-            if item.rule.rhs[item.dot] not in self.lexer.nonterminals:
+            if item.rule.rhs[item.dot] not in self.lang.nonterminals:
                 continue
             terminal = item.rule.rhs[item.dot]
-            for rule in self.lexer.rules:
+            for rule in self.lang.rules:
                 if rule.lhs == terminal:
                     new_item = Item(rule, 0)
                     if new_item not in old_set:
@@ -115,15 +135,28 @@ class Parser:
         return new_set
 
 
-    def parse(self):
+    def parse(self) -> ParseTree:
         states = [0]
+        tokenstack = []
         while True:
+            if states[-1] == self.accepting and self.lexer.lookahead().type == "eof":
+                print("accepted")
+                return tokenstack[0]
             if (states[-1], self.lexer.lookahead().type) in self.reductions:
+
                 rule = self.reductions[(states[-1], self.lexer.lookahead().type)]
-                if rule.lhs == "":
-                    # TODO: properly mark final state
-                    return
-                for x in range(len(rule.rhs)):
+                rule_len = len(rule.rhs)
+
+
+                popped_tokens = []
+                for x in range(rule_len):
+                    popped_tokens.append(tokenstack.pop())
+                popped_tokens.reverse()
+
+
+                tokenstack.append(ParseTree(popped_tokens, self.lang.rules.index(rule)))
+                
+                for x in range(rule_len):
                     states.pop()
                 new_state = self.transitions[(states[-1], rule.lhs)]
                 states.append(self.transitions[(states[-1], rule.lhs)])
@@ -132,11 +165,13 @@ class Parser:
                 token = self.lexer.next_token()
                 new_state = self.transitions[(states[-1], token.type)]
                 print(f"saw {token}, shifting to {new_state}")
-                
+                tokenstack.append(token)
                 states.append(new_state)
+        
 
 
 
 if __name__ == "__main__":
-    test = Parser(Lexer("test_lang.lang", "test.txt"))
-    test.parse()
+    test = Parser(Lexer("while.lang", "WhileTest.txt"))
+    program = test.parse().simplify()
+    print(program.execute({}))

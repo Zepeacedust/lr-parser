@@ -1,0 +1,44 @@
+class number:\d+$
+class identifier:\w+$
+
+Statements -> Statement ; Statements
+Statements -> 
+
+
+Statement -> Expression
+Statement -> while ( Expression ) { Statements }
+Statement -> If ( Expression ) { Statements } Else
+Statement -> Type identifier = Expression
+Statement -> identifier = Expression
+Statement -> print Expression
+
+Else -> else { Statements }
+Else -> 
+
+Expression -> Expression or BooleanExpression
+Expression -> BooleanExpression
+
+BooleanExpression -> BooleanExpression and CompExpression
+BooleanExpression -> CompExpression
+
+CompExpression -> SumExpression == SumExpression
+CompExpression -> SumExpression != SumExpression
+CompExpression -> SumExpression <= SumExpression
+CompExpression -> SumExpression < SumExpression
+CompExpression -> SumExpression >= SumExpression
+CompExpression -> SumExpression > SumExpression
+CompExpression -> SumExpression
+
+SumExpression -> SumExpression + ProdExpression
+SumExpression -> SumExpression - ProdExpression
+SumExpression -> ProdExpression
+
+ProdExpression -> ProdExpression * UnaryExpression
+ProdExpression -> UnaryExpression
+
+UnaryExpression -> identifier
+UnaryExpression -> number
+UnaryExpression -> true
+UnaryExpression -> false
+UnaryExpression -> - UnaryExpression
+UnaryExpression -> ( Expression )
