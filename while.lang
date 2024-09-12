@@ -42,3 +42,16 @@ UnaryExpression -> true
 UnaryExpression -> false
 UnaryExpression -> - UnaryExpression
 UnaryExpression -> ( Expression )
+
+Type -> bool
+Type -> int
+
+Statement -> Type identifier ( FormalParameters ) { Statements }
+
+FormalParameters -> Type identifier , FormalParameters 
+FormalParameters -> Type identifier
+
+UnaryExpression -> identifier ( Formal )
+
+Parameters -> Expression, Parameters
+Parameters -> Expression

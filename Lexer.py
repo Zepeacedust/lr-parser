@@ -94,8 +94,7 @@ class Lexer:
                 return self.match_family(family)
         return Token('eof', '', self.tell())
     
-    def match_family(self, family):
-        word = ""
+    def match_family(self, family, word=""):
         while family[1].match(word + self.ch):
             word += self.next_character()
             if self.ch == "":
@@ -113,8 +112,10 @@ class Lexer:
         if trie_head.word == word:
             return Token(word, word, self.tell())
         else:
+            for family in self.language.families:
+                if family[1].match(word):
+                    return self.match_family(family, word=word)
             print("something silly happened", word, trie_head.word)
-
 
 if __name__ == "__main__":
     test = Lexer("language.lang", "test.txt")
